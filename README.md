@@ -1,19 +1,25 @@
-# SEO Sitemap Analyzer (Frontend-Only)
+# SEO Sitemap Analyzer
 
-A small React + TypeScript tool to analyze a `sitemap.xml` file in the browser and export SEO data to Excel.  
-Everything runs on the **frontend only**, so it can be deployed easily to Vercel or any static host.
+A React + TypeScript tool to analyze a `sitemap.xml` file and export SEO data to Excel.
+
+This repo supports **two run modes**:
+
+- **Local backend mode (recommended for accuracy)**: React UI + local Python FastAPI backend (no CORS issues, best results)
+- **Frontend-only mode (limited)**: browser fetches pages directly (may fail due to CORS on many sites)
 
 ## Features
 
 - Upload a `sitemap.xml` file
 - Parse up to **100 URLs** from `<loc>` entries
-- For each page (fetched from the browser):
+- For each page:
   - Page title
   - Meta description
+  - Meta keywords
   - Canonical URL
   - Meta robots tag
   - HTML `lang` attribute
   - JSON‑LD `@type` values
+  - Open Graph: `og:title`, `og:description`, `og:image`, `og:type`
   - Total DOM element count
   - Number of `<style>` tags
   - Error column (HTTP errors / timeouts)
@@ -25,10 +31,23 @@ Everything runs on the **frontend only**, so it can be deployed easily to Vercel
 
 - **React** + **TypeScript** (Vite)
 - **XLSX** (generate Excel in the browser)
+- **Python** (requests + BeautifulSoup + lxml + pandas) for server-side scraping
 
-## Getting Started (Local)
+## Getting Started (Local - with backend)
 
-From the `frontend` folder:
+### Backend (Python)
+
+```bash
+cd backend
+python3 -m pip install fastapi uvicorn requests beautifulsoup4 pandas openpyxl lxml
+python3 -m uvicorn server:app --reload --port 8000
+```
+
+Leave that running.
+
+### Frontend (React)
+
+In a second terminal:
 
 ```bash
 cd frontend
@@ -37,6 +56,18 @@ npm run dev
 ```
 
 Open the URL shown in the terminal (usually `http://localhost:5173`).
+
+> If your React app needs to point to the local backend, set `VITE_API_BASE_URL=http://localhost:8000` in `frontend/.env`.
+
+## Getting Started (Frontend-only)
+
+Frontend-only mode may fail for many sites due to browser CORS.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ## How to Use
 
@@ -49,11 +80,11 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
 
 ## Deployment (Vercel)
 
-1. Make sure this project is in a Git repo and pushed to GitHub.
-2. In Vercel:
-   - New Project → Import your repo.
-   - Framework: **Vite**.
-   - Build command: `npm run build`.
-   - Output directory: `dist`.
-3. Deploy. No environment variables or backend are required.
+### Frontend-only deploy
+
+If you deploy only the `frontend` app to Vercel, the Python backend will not run there, and scraping may be limited by CORS.
+
+### Full deploy (Frontend + Python Functions)
+
+This repo also includes Python functions under `api/`, but they will only work if your Vercel project root is the **repo root** (not `frontend`).
 
