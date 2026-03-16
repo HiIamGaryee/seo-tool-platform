@@ -177,10 +177,8 @@ function App() {
       setRows(results);
       setProgress(100);
       setMessage(`Analysis completed for ${results.length} URLs.`);
-    } catch (e: unknown) {
-      const message =
-        e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
-      setMessage(`Failed to analyze sitemap: ${message}`);
+    } catch (e: any) {
+      setMessage(`Failed to analyze sitemap: ${String(e)}`);
     } finally {
       setIsRunning(false);
     }
@@ -744,6 +742,9 @@ function App() {
             >
               {(() => {
                 const total = rows.length;
+                const indexed = rows.filter(
+                  (r) => !r.robots.toLowerCase().includes("noindex"),
+                ).length;
                 const notIndexed = rows.filter((r) =>
                   r.robots.toLowerCase().includes("noindex"),
                 );
