@@ -57,3 +57,36 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
    - Output directory: `dist`.
 3. Deploy. No environment variables or backend are required.
 
+## Python backend & Vercel notes
+
+You now have a backend (`python/seo_scraper.py`). That changes how deployment works:
+
+- Vercel cannot run long Python crawlers like a normal long-lived server.
+- You either need to convert it into short-running **serverless functions** or host Python somewhere else (Railway, Render, etc.).
+
+### Recommended high-level architecture
+
+```text
+seo-tool-platform/
+│
+├─ frontend/          → React + Vite (UI)
+│
+├─ api/               → Python serverless functions (optional)
+│   └─ seo_scraper.py
+│
+└─ requirements.txt
+```
+
+On Vercel:
+
+- `frontend` is deployed as a static site.
+- `api` (if used) is deployed as Python functions that the frontend can call via `/api/...`.
+
+For heavier or long-running crawls, a common real-world pattern is:
+
+- **Frontend** on Vercel.
+- **Python scraper API** on a separate host (Railway/Render/Fly.io/VPS).
+
+Then the React app calls that external API instead of a Vercel function.
+
+

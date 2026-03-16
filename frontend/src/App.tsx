@@ -86,7 +86,7 @@ const THEMES: Theme[] = [
 
 const MAX_URLS = 100;
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_BASE_URL || "";
 const REQUEST_TIMEOUT_MS = 10000;
 
 function exportToExcel(rows: SeoRow[]) {
@@ -161,17 +161,27 @@ function App() {
     setMessage(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await axios.post<{ rows: SeoRow[] }>(
-        `${API_BASE_URL}/analyze-sitemap`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: REQUEST_TIMEOUT_MS * MAX_URLS,
-        },
-      );
+      const response = API_BASE_URL
+        ? await axios.post<{ rows: SeoRow[] }>(
+            `${API_BASE_URL}/analyze-sitemap`,
+            (() => {
+              const formData = new FormData();
+              formData.append("file", file);
+              return formData;
+            })(),
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+              timeout: REQUEST_TIMEOUT_MS * MAX_URLS,
+            },
+          )
+        : await axios.post<{ rows: SeoRow[] }>(
+            `/api/seo_scraper`,
+            await file.text(),
+            {
+              headers: { "Content-Type": "text/xml" },
+              timeout: REQUEST_TIMEOUT_MS * MAX_URLS,
+            },
+          );
 
       const results = response.data.rows || [];
       setRows(results);
