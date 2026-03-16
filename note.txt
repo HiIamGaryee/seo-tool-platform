@@ -1,0 +1,8 @@
+Phase 2 / Phase 3 – Python SEO ideas
+
+1. Add headless browser rendering (Playwright) to execute JS and capture real rendered titles, meta tags, and content length for SPA sites.
+2. Implement Lighthouse-style performance and Core Web Vitals checks (CLS, LCP, FID/INP approximations) for each URL and surface top issues.
+3. Build internal-link analysis: crawl all pages, map internal links, detect orphan pages, and suggest anchor text improvements.
+4. Detect duplicate / near-duplicate content using text similarity (e.g. cosine similarity on embeddings) and flag cannibalization issues.
+5. Generate per-page SEO improvement suggestions using an LLM prompt fed with the scraped data (titles, descriptions, H1s, OG tags, word count, etc.).
+
