@@ -175,7 +175,7 @@ function App() {
             },
           )
         : await axios.post<{ rows: SeoRow[] }>(
-            `/api/analyze-sitemap`,
+            `/api/seo_scraper`,
             await file.text(),
             {
               headers: { "Content-Type": "text/xml" },
