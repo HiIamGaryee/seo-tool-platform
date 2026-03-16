@@ -59,16 +59,6 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
 
 > If your React app needs to point to the local backend, set `VITE_API_BASE_URL=http://localhost:8000` in `frontend/.env`.
 
-## Getting Started (Frontend-only)
-
-Frontend-only mode may fail for many sites due to browser CORS.
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
 ## How to Use
 
 1. Open the app.
@@ -87,4 +77,3 @@ If you deploy only the `frontend` app to Vercel, the Python backend will not run
 ### Full deploy (Frontend + Python Functions)
 
 This repo also includes Python functions under `api/`, but they will only work if your Vercel project root is the **repo root** (not `frontend`).
-
