@@ -1,7 +1,105 @@
 import { useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import "./index.css";
+
+function Icon({
+  name,
+  size = 18,
+}: {
+  name: "home" | "download" | "book" | "close" | "back";
+  size?: number;
+}) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+  } as const;
+
+  switch (name) {
+    case "home":
+      return (
+        <svg {...common} aria-hidden>
+          <path
+            d="M3 10.8 12 3l9 7.8V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.8Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "download":
+      return (
+        <svg {...common} aria-hidden>
+          <path
+            d="M12 3v10m0 0 4-4m-4 4-4-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "book":
+      return (
+        <svg {...common} aria-hidden>
+          <path
+            d="M12 6c-2-1.4-5-2-8-2v14c3 0 6 .6 8 2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M12 6c2-1.4 5-2 8-2v14c-3 0-6 .6-8 2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M12 6v16"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "close":
+      return (
+        <svg {...common} aria-hidden>
+          <path
+            d="M6 6l12 12M18 6 6 18"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "back":
+      return (
+        <svg {...common} aria-hidden>
+          <path
+            d="M14.5 6 8.5 12l6 6"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 type SeoRow = {
   url: string;
@@ -89,6 +187,83 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const REQUEST_TIMEOUT_MS = 10000;
 
+function parseSitemapXml(xmlText: string): string[] {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  const locNodes = Array.from(doc.getElementsByTagName("loc"));
+  const urls = locNodes
+    .map((n) => n.textContent?.trim())
+    .filter((u): u is string => !!u);
+  return urls.slice(0, MAX_URLS);
+}
+
+function filenameFromUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const last = parts.length ? decodeURIComponent(parts[parts.length - 1]) : "index";
+    return `${last}.html`;
+  } catch {
+    return "page.html";
+  }
+}
+
+function zipNameFromUrls(urls: string[]): string {
+  const raw = urls[0] || "";
+  try {
+    const hostname = new URL(raw).hostname.toLowerCase();
+    const labels = hostname.split(".").filter(Boolean);
+    if (labels.length === 0) return "html-pages.zip";
+
+    // strip common prefixes
+    const prefixes = new Set(["www", "m"]);
+    const normalized = labels.filter((l, idx) => !(idx === 0 && prefixes.has(l)));
+
+    const twoPartTlds = new Set([
+      "co.uk",
+      "com.au",
+      "com.sg",
+      "com.my",
+      "com.hk",
+      "com.tw",
+      "co.jp",
+      "co.nz",
+      "co.kr",
+    ]);
+
+    const tail2 = normalized.slice(-2).join(".");
+    const tail3 = normalized.slice(-3).join(".");
+
+    // If it looks like a two-part TLD, pick the label before it.
+    let domain = "";
+    if (normalized.length >= 3 && twoPartTlds.has(tail2)) {
+      domain = normalized[normalized.length - 3];
+    } else if (normalized.length >= 4 && twoPartTlds.has(tail3.split(".").slice(-2).join("."))) {
+      domain = normalized[normalized.length - 3];
+    } else if (normalized.length >= 2) {
+      domain = normalized[normalized.length - 2]; // abc.com -> abc
+    } else {
+      domain = normalized[0];
+    }
+
+    const safe = domain.replace(/[^a-z0-9-]/gi, "_");
+    return `${safe || "html-pages"}.zip`;
+  } catch {
+    return "html-pages.zip";
+  }
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
 function exportToExcel(rows: SeoRow[]) {
   if (!rows.length) return;
 
@@ -134,6 +309,15 @@ function App() {
   const [themeIndex, setThemeIndex] = useState(0);
   const [showAllOg, setShowAllOg] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activePage, setActivePage] = useState<"home" | "download">("home");
+  const [downloadFile, setDownloadFile] = useState<File | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [isSitemapPreviewOpen, setIsSitemapPreviewOpen] = useState(false);
+  const [sitemapPreviewText, setSitemapPreviewText] = useState<string>("");
+  const [sitemapPreviewName, setSitemapPreviewName] = useState<string>("sitemap.xml");
 
   const theme = THEMES[themeIndex];
 
@@ -190,6 +374,75 @@ function App() {
     exportToExcel(rows);
   };
 
+  const openSitemapPreview = async (f: File | null) => {
+    if (!f) return;
+    const text = await f.text();
+    setSitemapPreviewText(text);
+    setSitemapPreviewName(f.name || "sitemap.xml");
+    setIsSitemapPreviewOpen(true);
+  };
+
+  const handleDownloadFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const f = event.target.files?.[0] || null;
+    setDownloadFile(f);
+    setDownloadProgress(0);
+    setDownloadMessage(null);
+  };
+
+  const downloadAllHtmlZip = async () => {
+    if (!downloadFile) {
+      setDownloadMessage("Please upload a sitemap.xml file first.");
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setDownloadMessage(null);
+
+    try {
+      const xml = await downloadFile.text();
+      const urls = parseSitemapXml(xml);
+      if (!urls.length) {
+        setDownloadMessage("No URLs found in sitemap.");
+        return;
+      }
+
+      const zipName = zipNameFromUrls(urls);
+
+      const zip = new JSZip();
+      const usedNames = new Map<string, number>();
+
+      for (let i = 0; i < urls.length; i += 1) {
+        const url = urls[i];
+        const baseName = filenameFromUrl(url);
+        const count = usedNames.get(baseName) ?? 0;
+        usedNames.set(baseName, count + 1);
+        const name =
+          count === 0 ? baseName : baseName.replace(/\.html$/i, `-${count + 1}.html`);
+
+        const htmlRes = await axios.get<string>(`${API_BASE_URL}/fetch-html`, {
+          params: { url },
+          responseType: "text",
+          timeout: 15000,
+        });
+        zip.file(name, htmlRes.data || "");
+        setDownloadProgress(Math.round(((i + 1) / urls.length) * 100));
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, zipName);
+      setDownloadMessage(`Downloaded ${urls.length} pages as ${zipName}`);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
+      setDownloadMessage(`Download failed: ${msg}`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -201,6 +454,244 @@ function App() {
         padding: "1rem",
       }}
     >
+      {/* Sitemap preview modal */}
+      <div
+        onClick={() => setIsSitemapPreviewOpen(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          opacity: isSitemapPreviewOpen ? 1 : 0,
+          pointerEvents: isSitemapPreviewOpen ? "auto" : "none",
+          transition: "opacity 180ms ease-out",
+          zIndex: 60,
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: isSitemapPreviewOpen
+            ? "translate(-50%, -50%) scale(1)"
+            : "translate(-50%, -50%) scale(0.98)",
+          width: "min(920px, calc(100vw - 2rem))",
+          maxHeight: "min(80vh, 720px)",
+          backgroundColor:
+            theme.name === "Deep Night" ? "rgba(15, 23, 42, 0.98)" : "#ffffff",
+          color: theme.primaryText,
+          borderRadius: "0.9rem",
+          border:
+            theme.name === "Deep Night"
+              ? "1px solid rgba(51,65,85,0.7)"
+              : "1px solid rgba(229,231,235,0.9)",
+          boxShadow: "0 30px 90px rgba(0,0,0,0.35)",
+          opacity: isSitemapPreviewOpen ? 1 : 0,
+          pointerEvents: isSitemapPreviewOpen ? "auto" : "none",
+          transition: "opacity 180ms ease-out, transform 180ms ease-out",
+          zIndex: 70,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!isSitemapPreviewOpen}
+      >
+        <div
+          style={{
+            padding: "0.85rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom:
+              theme.name === "Deep Night"
+                ? "1px solid rgba(51,65,85,0.7)"
+                : "1px solid rgba(229,231,235,0.9)",
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>Sitemap preview · {sitemapPreviewName}</div>
+          <button
+            type="button"
+            onClick={() => setIsSitemapPreviewOpen(false)}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: theme.primaryText,
+              cursor: "pointer",
+              fontSize: "1.2rem",
+              lineHeight: 1,
+            }}
+            aria-label="Close preview"
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+        <pre
+          style={{
+            margin: 0,
+            padding: "0.9rem 1rem",
+            overflow: "auto",
+            fontSize: "0.75rem",
+            lineHeight: 1.45,
+            color: theme.name === "Deep Night" ? "#e5e7eb" : "#111827",
+            backgroundColor:
+              theme.name === "Deep Night" ? "rgba(2,6,23,0.55)" : "rgba(249,250,251,0.95)",
+          }}
+        >
+          {sitemapPreviewText}
+        </pre>
+      </div>
+
+      {/* Right-side slide-out menu */}
+      <div
+        onClick={() => setIsMenuOpen(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          opacity: isMenuOpen ? 1 : 0,
+          pointerEvents: isMenuOpen ? "auto" : "none",
+          transition: "opacity 180ms ease-out",
+          zIndex: 40,
+        }}
+      />
+      <aside
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          height: "100vh",
+          width: "320px",
+          maxWidth: "85vw",
+          backgroundColor:
+            theme.name === "Deep Night" ? "rgba(15, 23, 42, 0.98)" : "#ffffff",
+          color: theme.primaryText,
+          borderLeft:
+            theme.name === "Deep Night"
+              ? "1px solid rgba(51,65,85,0.7)"
+              : "1px solid rgba(229,231,235,0.9)",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+          transform: isMenuOpen ? "translateX(0)" : "translateX(105%)",
+          transition: "transform 220ms ease-out",
+          zIndex: 50,
+          padding: "1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
+        }}
+        aria-hidden={!isMenuOpen}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>Menu</div>
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(false)}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: theme.primaryText,
+              cursor: "pointer",
+              fontSize: "1.2rem",
+              lineHeight: 1,
+            }}
+            aria-label="Close menu"
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setActivePage("home");
+              setIsMenuOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              width: "100%",
+              padding: "0.65rem 0.75rem",
+              borderRadius: "0.75rem",
+              border:
+                activePage === "home"
+                  ? "1px solid rgba(99,102,241,0.55)"
+                  : "1px solid rgba(229,231,235,0.9)",
+              backgroundColor:
+                activePage === "home"
+                  ? "rgba(99,102,241,0.12)"
+                  : "rgba(148,163,184,0.06)",
+              color: theme.primaryText,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: "1.25rem",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <Icon name="home" size={18} />
+            </span>
+            <span>Home</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActivePage("download");
+              setIsMenuOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              width: "100%",
+              padding: "0.65rem 0.75rem",
+              borderRadius: "0.75rem",
+              border:
+                activePage === "download"
+                  ? "1px solid rgba(236,72,153,0.55)"
+                  : "1px solid rgba(229,231,235,0.9)",
+              backgroundColor:
+                activePage === "download"
+                  ? "rgba(236,72,153,0.12)"
+                  : "rgba(148,163,184,0.06)",
+              color: theme.primaryText,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: "1.25rem",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <Icon name="download" size={18} />
+            </span>
+            <span>Download</span>
+          </button>
+        </nav>
+
+        <div style={{ marginTop: "auto", fontSize: "0.75rem", color: theme.secondaryText }}>
+          Tip: Use “Download” after you run an analysis.
+        </div>
+      </aside>
+
       <div
         style={{
           maxWidth: "960px",
@@ -220,6 +711,70 @@ function App() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(true)}
+              style={{
+                width: "2.1rem",
+                height: "2.1rem",
+                marginLeft: "0.2rem",
+                borderRadius: "999px",
+                border:
+                  theme.name === "Deep Night"
+                    ? "1px solid rgba(51,65,85,0.7)"
+                    : "1px solid rgba(229,231,235,0.9)",
+                backgroundColor:
+                  theme.name === "Deep Night"
+                    ? "rgba(15,23,42,0.7)"
+                    : "rgba(255,255,255,0.9)",
+                color: theme.primaryText,
+                cursor: "pointer",
+                display: "grid",
+                placeItems: "center",
+                padding: 0,
+              }}
+              aria-label="Open menu"
+            >
+              <span
+                aria-hidden
+                style={{
+                  display: "grid",
+                  gap: "3px",
+                  lineHeight: 0,
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    width: "14px",
+                    height: "2px",
+                    backgroundColor: theme.primaryText,
+                    borderRadius: "999px",
+                    opacity: 0.9,
+                  }}
+                />
+                <span
+                  style={{
+                    display: "block",
+                    width: "14px",
+                    height: "2px",
+                    backgroundColor: theme.primaryText,
+                    borderRadius: "999px",
+                    opacity: 0.9,
+                  }}
+                />
+                <span
+                  style={{
+                    display: "block",
+                    width: "14px",
+                    height: "2px",
+                    backgroundColor: theme.primaryText,
+                    borderRadius: "999px",
+                    opacity: 0.9,
+                  }}
+                />
+              </span>
+            </button>
             <h1
               style={{
                 fontSize: "1.5rem",
@@ -398,7 +953,155 @@ function App() {
           </div>
         )}
 
-        <div style={{ marginBottom: "1rem" }}>
+        {activePage === "download" ? (
+          <div style={{ marginBottom: "0.5rem" }}>
+            <div
+              style={{
+                textAlign: "left",
+                color: theme.primaryText,
+                fontWeight: 700,
+                marginBottom: "0.25rem",
+              }}
+            >
+              Download
+            </div>
+            <div
+              style={{
+                textAlign: "left",
+                color: theme.secondaryText,
+                fontSize: "0.85rem",
+                marginBottom: "1rem",
+              }}
+            >
+              Upload a sitemap and download all pages as HTML (ZIP).
+            </div>
+
+            <div style={{ marginBottom: "0.75rem", textAlign: "left" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: theme.secondaryText,
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Upload sitemap.xml
+              </label>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "999px",
+                  backgroundColor: theme.subtleAccent,
+                }}
+              >
+                <input type="file" accept=".xml" onChange={handleDownloadFileChange} />
+                {downloadFile && (
+                  <button
+                    type="button"
+                    onClick={() => openSitemapPreview(downloadFile)}
+                    style={{
+                      width: "2rem",
+                      height: "2rem",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(148,163,184,0.35)",
+                      backgroundColor: "rgba(255,255,255,0.7)",
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                      color: theme.primaryText,
+                    }}
+                    aria-label="Preview sitemap"
+                    title="Preview sitemap"
+                  >
+                    <Icon name="book" size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                justifyContent: "flex-start",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setActivePage("home")}
+                style={{
+                  background: "rgba(148,163,184,0.18)",
+                  color: theme.primaryText,
+                  padding: "0.5rem 1rem",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(148,163,184,0.35)",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                  <Icon name="back" size={18} /> Back to Home
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadAllHtmlZip}
+                disabled={!downloadFile || isDownloading}
+                style={{
+                  background: downloadFile && !isDownloading
+                    ? "linear-gradient(135deg, #22c55e, #16a34a)"
+                    : theme.primaryButtonDisabled,
+                  color: "#ffffff",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "999px",
+                  border: "none",
+                  cursor: downloadFile && !isDownloading ? "pointer" : "not-allowed",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                {isDownloading ? `Downloading… ${downloadProgress}%` : "Download all HTML (ZIP)"}
+              </button>
+            </div>
+
+            {isDownloading && (
+              <div style={{ marginTop: "0.75rem", maxWidth: "420px" }}>
+                <div
+                  style={{
+                    height: "6px",
+                    borderRadius: "999px",
+                    backgroundColor: "rgba(148,163,184,0.3)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.max(5, downloadProgress)}%`,
+                      background: "linear-gradient(90deg, #22c55e, #0ea5e9, #6366f1)",
+                      transition: "width 0.3s ease-out",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {downloadMessage && (
+              <div style={{ marginTop: "0.75rem", textAlign: "left", fontSize: "0.85rem", color: theme.secondaryText }}>
+                {downloadMessage}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginBottom: "1rem" }}>
           <label
             style={{
               display: "block",
@@ -421,47 +1124,71 @@ function App() {
             }}
           >
             <input type="file" accept=".xml" onChange={handleFileChange} />
+            {file && (
+              <button
+                type="button"
+                onClick={() => openSitemapPreview(file)}
+                style={{
+                  width: "2rem",
+                  height: "2rem",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(148,163,184,0.35)",
+                  backgroundColor: "rgba(255,255,255,0.7)",
+                  cursor: "pointer",
+                  display: "grid",
+                  placeItems: "center",
+                  color: theme.primaryText,
+                }}
+                aria-label="Preview sitemap"
+                title="Preview sitemap"
+              >
+                <Icon name="book" size={18} />
+              </button>
+            )}
           </div>
         </div>
+        )}
 
-        <div
-          style={{
-            marginBottom: "1rem",
-            display: "flex",
-            gap: "0.75rem",
-            alignItems: "center",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={!file || isRunning}
+        {activePage === "home" && (
+          <div
             style={{
-              background:
-                !file || isRunning
-                  ? theme.primaryButtonDisabled
-                  : theme.primaryButtonGradient,
-              color: "#ffffff",
-              padding: "0.5rem 1rem",
-              borderRadius: "999px",
-              border: "none",
-              cursor: !file || isRunning ? "not-allowed" : "pointer",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              boxShadow: "0 12px 30px rgba(15,23,42,0.25)",
+              marginBottom: "1rem",
+              display: "flex",
+              gap: "0.75rem",
+              alignItems: "center",
             }}
           >
-            {isRunning ? "Running…" : "Run SEO Analysis"}
-          </button>
+            <button
+              type="button"
+              onClick={handleRun}
+              disabled={!file || isRunning}
+              style={{
+                background:
+                  !file || isRunning
+                    ? theme.primaryButtonDisabled
+                    : theme.primaryButtonGradient,
+                color: "#ffffff",
+                padding: "0.5rem 1rem",
+                borderRadius: "999px",
+                border: "none",
+                cursor: !file || isRunning ? "not-allowed" : "pointer",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                boxShadow: "0 12px 30px rgba(15,23,42,0.25)",
+              }}
+            >
+              {isRunning ? "Running…" : "Run SEO Analysis"}
+            </button>
 
-          {isRunning && (
-            <div style={{ fontSize: "0.875rem", color: theme.secondaryText }}>
-              Analyzing… {progress}%
-            </div>
-          )}
-        </div>
+            {isRunning && (
+              <div style={{ fontSize: "0.875rem", color: theme.secondaryText }}>
+                Analyzing… {progress}%
+              </div>
+            )}
+          </div>
+        )}
 
-        {message && (
+        {activePage === "home" && message && (
           <p
             style={{
               fontSize: "0.875rem",
@@ -473,7 +1200,7 @@ function App() {
           </p>
         )}
 
-        {rows.length > 0 && (
+        {activePage === "home" && rows.length > 0 && (
           <>
             <div
               style={{
