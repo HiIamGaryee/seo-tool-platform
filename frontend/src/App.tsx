@@ -117,6 +117,7 @@ type SeoRow = {
   og_description?: string;
   og_image?: string;
   og_type?: string;
+  og_url?: string;
 };
 
 type Theme = {
@@ -197,6 +198,35 @@ function parseSitemapXml(xmlText: string): string[] {
   return urls.slice(0, MAX_URLS);
 }
 
+function normalizeForCompare(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    const origin = u.origin.toLowerCase();
+    const path = u.pathname.replace(/\/+$/, "") || "/";
+    return `${origin}${path}`;
+  } catch {
+    return rawUrl.trim();
+  }
+}
+
+function isUrlOgCanonicalMatch(row: SeoRow): boolean {
+  const url = normalizeForCompare(row.url || "");
+  const canonical = normalizeForCompare(row.canonical || "");
+  const ogUrl = normalizeForCompare(row.og_url || "");
+
+  // Require URL + at least one of canonical/og:url to compare
+  const hasCanonical = !!row.canonical;
+  const hasOgUrl = !!row.og_url;
+  if (!url || (!hasCanonical && !hasOgUrl)) return false;
+
+  const canonicalOk = !hasCanonical || canonical === url;
+  const ogOk = !hasOgUrl || ogUrl === url;
+  const crossOk =
+    !hasCanonical || !hasOgUrl || canonical === ogUrl || canonical === url || ogUrl === url;
+
+  return canonicalOk && ogOk && crossOk;
+}
+
 function filenameFromUrl(rawUrl: string): string {
   try {
     const u = new URL(rawUrl);
@@ -272,6 +302,7 @@ function exportToExcel(rows: SeoRow[]) {
     Title: r.title,
     Description: r.description,
     Keywords: r.keywords || "",
+    "URL Match": isUrlOgCanonicalMatch(r) ? "true" : "false",
     Canonical: r.canonical,
     "Robots Tag": r.robots,
     Language: r.language,
@@ -1275,6 +1306,7 @@ function App() {
                       "Title",
                       "Description",
                       "Keywords",
+                      "URL Match",
                       "Canonical",
                       "Robots Tag",
                       "Language",
@@ -1336,6 +1368,15 @@ function App() {
                           }}
                         >
                           {row.keywords || ""}
+                        </td>
+                        <td
+                          style={{
+                            border: "1px solid #e5e7eb",
+                            padding: "0.25rem 0.5rem",
+                            minWidth: "150px",
+                          }}
+                        >
+                          {isUrlOgCanonicalMatch(row) ? "true" : "false"}
                         </td>
                         <td
                           style={{
@@ -1409,7 +1450,7 @@ function App() {
                       {showAllOg && (
                         <tr key={`${row.url}-og`}>
                           <td
-                            colSpan={11}
+                            colSpan={12}
                             style={{
                               border: "1px solid #e5e7eb",
                               padding: "0.4rem 0.6rem",
@@ -1432,6 +1473,9 @@ function App() {
                               <div>
                                 <strong>og:description ：</strong>{" "}
                                 {row.og_description || "-"}
+                              </div>
+                              <div>
+                                <strong>og:url ：</strong> {row.og_url || "-"}
                               </div>
                               <div>
                                 <strong>og:type ：</strong> {row.og_type || "-"}

@@ -26,6 +26,7 @@ class SeoRow:
     og_description: str
     og_image: str
     og_type: str
+    og_url: str
     canonical: str
     robots: str
     language: str
@@ -91,6 +92,7 @@ def analyze_url(url: str) -> SeoRow:
             og_description="",
             og_image="",
             og_type="",
+            og_url="",
             canonical="",
             robots="",
             language="",
@@ -133,6 +135,7 @@ def analyze_url(url: str) -> SeoRow:
     og_description = og("description")
     og_image = og("image")
     og_type = og("type")
+    og_url = og("url")
 
     canonical_tag = soup.find("link", rel=lambda v: v and "canonical" in v.lower())
     canonical = (canonical_tag.get("href") or "").strip() if canonical_tag else ""
@@ -156,6 +159,7 @@ def analyze_url(url: str) -> SeoRow:
         og_description=og_description,
         og_image=og_image,
         og_type=og_type,
+        og_url=og_url,
         canonical=canonical,
         robots=robots,
         language=language,
@@ -186,6 +190,7 @@ def rows_to_excel_bytes(rows: list[dict]) -> bytes:
             "og_description",
             "og_image",
             "og_type",
+            "og_url",
             "canonical",
             "robots",
             "language",
