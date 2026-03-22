@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
@@ -350,7 +350,15 @@ function App() {
   const [sitemapPreviewText, setSitemapPreviewText] = useState<string>("");
   const [sitemapPreviewName, setSitemapPreviewName] = useState<string>("sitemap.xml");
 
+  const runIdRef = useRef(0);
+  const runTimersRef = useRef<number[]>([]);
+
   const theme = THEMES[themeIndex];
+
+  const clearRunTimers = () => {
+    runTimersRef.current.forEach((id) => window.clearTimeout(id));
+    runTimersRef.current = [];
+  };
 
   const handleThemeChange = () => {
     setThemeIndex((prev) => (prev + 1) % THEMES.length);
@@ -370,10 +378,28 @@ function App() {
       return;
     }
 
+    runIdRef.current += 1;
+    const runId = runIdRef.current;
+    clearRunTimers();
+
     setIsRunning(true);
     setRows([]);
     setProgress(0);
     setMessage(null);
+
+    // Hardcoded progress steps
+    runTimersRef.current.push(
+      window.setTimeout(() => {
+        if (runIdRef.current !== runId) return;
+        setProgress(30);
+      }, 3000),
+    );
+    runTimersRef.current.push(
+      window.setTimeout(() => {
+        if (runIdRef.current !== runId) return;
+        setProgress(60);
+      }, 6000),
+    );
 
     try {
       const formData = new FormData();
@@ -389,14 +415,23 @@ function App() {
       );
 
       const results = response.data.rows || [];
-      setRows(results);
-      setProgress(100);
-      setMessage(`Analysis completed for ${results.length} URLs.`);
+      // Finish progress in 2s, then reveal results
+      runTimersRef.current.push(
+        window.setTimeout(() => {
+          if (runIdRef.current !== runId) return;
+          setProgress(100);
+          setRows(results);
+          setMessage(`Analysis completed for ${results.length} URLs.`);
+          setIsRunning(false);
+          clearRunTimers();
+        }, 2000),
+      );
     } catch (e: unknown) {
+      clearRunTimers();
       const message =
         e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
+      setProgress(0);
       setMessage(`Failed to analyze sitemap: ${message}`);
-    } finally {
       setIsRunning(false);
     }
   };
