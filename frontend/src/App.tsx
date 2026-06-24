@@ -347,6 +347,8 @@ function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [themeIndex, setThemeIndex] = useState(0);
   const [showAllOg, setShowAllOg] = useState(false);
+  const [showMismatchInfo, setShowMismatchInfo] = useState(false);
+  const [mismatchCopied, setMismatchCopied] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState<"home" | "download" | "imgextract">("home");
@@ -453,6 +455,21 @@ function App() {
 
   const handleDownload = () => {
     exportToExcel(rows);
+  };
+
+  const handleExtractMismatch = () => {
+    const mismatched = rows.filter(
+      (row) => (row.canonical || row.og_url) && !isUrlOgCanonicalMatch(row)
+    );
+    if (mismatched.length === 0) {
+      alert("No URL mismatches found — all URLs match their canonical / OG URL.");
+      return;
+    }
+    const text = mismatched.map((row, i) => `${i + 1}. ${row.url}`).join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setMismatchCopied(true);
+      setTimeout(() => setMismatchCopied(false), 2000);
+    });
   };
 
   const openSitemapPreview = async (f: File | null) => {
@@ -1679,6 +1696,83 @@ function App() {
               >
                 {showAllOg ? "Hide OG for all" : "See OG for all"}
               </button>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                <button
+                  type="button"
+                  onClick={handleExtractMismatch}
+                  style={{
+                    background: "linear-gradient(135deg, #ef4444, #b91c1c)",
+                    color: "#ffffff",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {mismatchCopied ? "Copied!" : "Copy Mismatch URLs"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMismatchInfo((v) => !v)}
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${theme.secondaryText}`,
+                    color: theme.secondaryText,
+                    borderRadius: "50%",
+                    width: "1.2rem",
+                    height: "1.2rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  i
+                </button>
+                {showMismatchInfo && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 0.5rem)",
+                      left: 0,
+                      zIndex: 100,
+                      background: theme.cardBackground,
+                      border: "1px solid rgba(128,128,128,0.3)",
+                      borderRadius: "0.5rem",
+                      padding: "0.75rem",
+                      width: "270px",
+                      fontSize: "0.75rem",
+                      color: theme.primaryText,
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                    }}
+                  >
+                    Copies to clipboard every URL where the page URL, <strong>Canonical</strong>, or <strong>OG URL</strong> do not all match — one URL per line, ready to paste.
+                    <button
+                      type="button"
+                      onClick={() => setShowMismatchInfo(false)}
+                      style={{
+                        display: "block",
+                        marginTop: "0.5rem",
+                        fontSize: "0.7rem",
+                        cursor: "pointer",
+                        background: "none",
+                        border: "none",
+                        color: theme.secondaryText,
+                        padding: 0,
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div
