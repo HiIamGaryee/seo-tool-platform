@@ -8,7 +8,7 @@ function Icon({
   name,
   size = 18,
 }: {
-  name: "home" | "download" | "book" | "close" | "back";
+  name: "home" | "download" | "book" | "close" | "back" | "picture";
   size?: number;
 }) {
   const common = {
@@ -94,6 +94,14 @@ function Icon({
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+        </svg>
+      );
+    case "picture":
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M21 15.5l-5-5.5L5 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     default:
@@ -341,7 +349,7 @@ function App() {
   const [showAllOg, setShowAllOg] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activePage, setActivePage] = useState<"home" | "download">("home");
+  const [activePage, setActivePage] = useState<"home" | "download" | "imgextract">("home");
   const [downloadFile, setDownloadFile] = useState<File | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -349,6 +357,13 @@ function App() {
   const [isSitemapPreviewOpen, setIsSitemapPreviewOpen] = useState(false);
   const [sitemapPreviewText, setSitemapPreviewText] = useState<string>("");
   const [sitemapPreviewName, setSitemapPreviewName] = useState<string>("sitemap.xml");
+
+  // HTML Image Extractor page state
+  const [htmlInput, setHtmlInput] = useState("");
+  const [extractedImages, setExtractedImages] = useState<string[]>([]);
+  const [isImgDownloading, setIsImgDownloading] = useState(false);
+  const [imgDownloadProgress, setImgDownloadProgress] = useState(0);
+  const [imgDownloadMessage, setImgDownloadMessage] = useState<string | null>(null);
 
   const runIdRef = useRef(0);
   const runTimersRef = useRef<number[]>([]);
@@ -508,6 +523,107 @@ function App() {
       setIsDownloading(false);
     }
   };
+
+  // ── HTML Image Extractor helpers ─────────────────────────────────────────
+  const extractImagesFromHtml = () => {
+    if (!htmlInput.trim()) return;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlInput, "text/html");
+    const urls = new Set<string>();
+
+    // <img src> and <img data-src>
+    doc.querySelectorAll("img[src]").forEach((el) => {
+      const src = el.getAttribute("src");
+      if (src && !src.startsWith("data:")) urls.add(src);
+    });
+    doc.querySelectorAll("img[data-src]").forEach((el) => {
+      const src = el.getAttribute("data-src");
+      if (src && !src.startsWith("data:")) urls.add(src);
+    });
+
+    // background-image: url(...) in style attributes
+    doc.querySelectorAll("[style]").forEach((el) => {
+      const style = el.getAttribute("style") || "";
+      const matches = style.matchAll(/url\(['"]?([^'")\s]+)['"]?\)/g);
+      for (const match of matches) {
+        const u = match[1];
+        if (u && !u.startsWith("data:")) urls.add(u);
+      }
+    });
+
+    // <source srcset>
+    doc.querySelectorAll("source[srcset]").forEach((el) => {
+      const srcset = el.getAttribute("srcset") || "";
+      srcset.split(",").forEach((part) => {
+        const u = part.trim().split(/\s+/)[0];
+        if (u && !u.startsWith("data:")) urls.add(u);
+      });
+    });
+
+    setExtractedImages(Array.from(urls));
+    setImgDownloadProgress(0);
+    setImgDownloadMessage(
+      urls.size === 0 ? "No images found in the pasted HTML." : null,
+    );
+  };
+
+  const filenameFromImageUrl = (url: string, index: number): string => {
+    try {
+      const u = new URL(url);
+      const parts = u.pathname.split("/").filter(Boolean);
+      const last = parts.length
+        ? decodeURIComponent(parts[parts.length - 1])
+        : "";
+      if (last && /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif)$/i.test(last)) {
+        return last;
+      }
+    } catch {
+      // fallthrough
+    }
+    return `image-${index + 1}.jpg`;
+  };
+
+  const downloadAllImages = async () => {
+    if (!extractedImages.length) return;
+    setIsImgDownloading(true);
+    setImgDownloadProgress(0);
+    setImgDownloadMessage(null);
+
+    try {
+      const zip = new JSZip();
+      const usedNames = new Map<string, number>();
+
+      for (let i = 0; i < extractedImages.length; i++) {
+        const url = extractedImages[i];
+        const baseName = filenameFromImageUrl(url, i);
+        const count = usedNames.get(baseName) ?? 0;
+        usedNames.set(baseName, count + 1);
+        const name =
+          count === 0
+            ? baseName
+            : baseName.replace(/(\.[^.]+)$/, `-${count + 1}$1`);
+
+        const resp = await axios.get<ArrayBuffer>(`${API_BASE_URL}/fetch-image`, {
+          params: { url },
+          responseType: "arraybuffer",
+          timeout: 30000,
+        });
+        zip.file(name, resp.data);
+        setImgDownloadProgress(Math.round(((i + 1) / extractedImages.length) * 100));
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, "images.zip");
+      setImgDownloadMessage(`Packed ${extractedImages.length} image(s) into images.zip`);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
+      setImgDownloadMessage(`Download failed: ${msg}`);
+    } finally {
+      setIsImgDownloading(false);
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -750,6 +866,45 @@ function App() {
               <Icon name="download" size={18} />
             </span>
             <span>Download</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActivePage("imgextract");
+              setIsMenuOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              width: "100%",
+              padding: "0.65rem 0.75rem",
+              borderRadius: "0.75rem",
+              border:
+                activePage === "imgextract"
+                  ? "1px solid rgba(16,185,129,0.55)"
+                  : "1px solid rgba(229,231,235,0.9)",
+              backgroundColor:
+                activePage === "imgextract"
+                  ? "rgba(16,185,129,0.12)"
+                  : "rgba(148,163,184,0.06)",
+              color: theme.primaryText,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: "1.25rem",
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <Icon name="picture" size={18} />
+            </span>
+            <span>Image Extractor</span>
           </button>
         </nav>
 
@@ -1019,7 +1174,224 @@ function App() {
           </div>
         )}
 
-        {activePage === "download" ? (
+        {activePage === "imgextract" ? (
+          <div style={{ marginBottom: "0.5rem" }}>
+            <div style={{ textAlign: "left", color: theme.primaryText, fontWeight: 700, marginBottom: "0.25rem" }}>
+              HTML Image Extractor
+            </div>
+            <div style={{ textAlign: "left", color: theme.secondaryText, fontSize: "0.85rem", marginBottom: "1rem" }}>
+              Paste HTML from browser Inspect, then download all images automatically.
+            </div>
+
+            <textarea
+              value={htmlInput}
+              onChange={(e) => {
+                setHtmlInput(e.target.value);
+                setExtractedImages([]);
+                setImgDownloadMessage(null);
+              }}
+              placeholder="Paste your HTML here (e.g. copied from browser DevTools)…"
+              rows={7}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "0.6rem 0.75rem",
+                borderRadius: "0.5rem",
+                border:
+                  theme.name === "Deep Night"
+                    ? "1px solid rgba(51,65,85,0.7)"
+                    : "1px solid rgba(209,213,219,0.9)",
+                backgroundColor:
+                  theme.name === "Deep Night"
+                    ? "rgba(15,23,42,0.9)"
+                    : "rgba(249,250,251,0.95)",
+                color: theme.primaryText,
+                fontSize: "0.78rem",
+                fontFamily: "monospace",
+                resize: "vertical",
+                outline: "none",
+                marginBottom: "0.75rem",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center", marginBottom: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => setActivePage("home")}
+                style={{
+                  background: "rgba(148,163,184,0.18)",
+                  color: theme.primaryText,
+                  padding: "0.5rem 1rem",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(148,163,184,0.35)",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                  <Icon name="back" size={18} /> Back
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={extractImagesFromHtml}
+                disabled={!htmlInput.trim()}
+                style={{
+                  background: htmlInput.trim()
+                    ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                    : theme.primaryButtonDisabled,
+                  color: "#fff",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "999px",
+                  border: "none",
+                  cursor: htmlInput.trim() ? "pointer" : "not-allowed",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                Extract Images
+              </button>
+
+              {extractedImages.length > 0 && (
+                <>
+                <button
+                  type="button"
+                  onClick={downloadAllImages}
+                  disabled={isImgDownloading}
+                  style={{
+                    background: isImgDownloading
+                      ? theme.primaryButtonDisabled
+                      : "linear-gradient(135deg, #10b981, #059669)",
+                    color: "#fff",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    cursor: isImgDownloading ? "not-allowed" : "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {isImgDownloading
+                    ? `Downloading… ${imgDownloadProgress}%`
+                    : `Download All as ZIP (${extractedImages.length})`}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const lines = extractedImages
+                      .map((url, i) => filenameFromImageUrl(url, i))
+                      .join("\n");
+                    const blob = new Blob([lines], { type: "text/plain" });
+                    downloadBlob(blob, "image-list.txt");
+                  }}
+                  style={{
+                    background: "linear-gradient(135deg, #f97316, #ea580c)",
+                    color: "#fff",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Download Name List (.txt)
+                </button>
+                </>
+              )}
+            </div>
+
+            {isImgDownloading && (
+              <div style={{ marginBottom: "0.75rem", maxWidth: "420px" }}>
+                <div style={{ height: "6px", borderRadius: "999px", backgroundColor: "rgba(148,163,184,0.3)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.max(5, imgDownloadProgress)}%`, background: "linear-gradient(90deg, #10b981, #6366f1)", transition: "width 0.3s ease-out" }} />
+                </div>
+              </div>
+            )}
+
+            {imgDownloadMessage && (
+              <div style={{ marginBottom: "0.75rem", fontSize: "0.85rem", color: theme.secondaryText, textAlign: "left" }}>
+                {imgDownloadMessage}
+              </div>
+            )}
+
+            {extractedImages.length > 0 && (
+              <div>
+                <div style={{ fontSize: "0.8rem", fontWeight: 600, color: theme.primaryText, marginBottom: "0.5rem" }}>
+                  Found {extractedImages.length} image(s)
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxHeight: "320px", overflowY: "auto" }}>
+                  {extractedImages.map((url, i) => (
+                    <div
+                      key={url}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.6rem",
+                        padding: "0.4rem 0.6rem",
+                        borderRadius: "0.5rem",
+                        backgroundColor:
+                          theme.name === "Deep Night"
+                            ? "rgba(15,23,42,0.7)"
+                            : "rgba(243,244,246,0.9)",
+                        border:
+                          theme.name === "Deep Night"
+                            ? "1px solid rgba(51,65,85,0.5)"
+                            : "1px solid rgba(229,231,235,0.8)",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt=""
+                        style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "0.3rem", flexShrink: 0, background: "rgba(148,163,184,0.2)" }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <div style={{ fontSize: "0.7rem", color: theme.secondaryText, wordBreak: "break-all", lineHeight: 1.3 }}>
+                          {url}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isImgDownloading}
+                        onClick={async () => {
+                          try {
+                            const resp = await axios.get<ArrayBuffer>(`${API_BASE_URL}/fetch-image`, {
+                              params: { url },
+                              responseType: "arraybuffer",
+                              timeout: 30000,
+                            });
+                            const ct = ((resp.headers["content-type"] as string | undefined) || "image/jpeg").split(";")[0].trim();
+                            const blob = new Blob([resp.data], { type: ct });
+                            downloadBlob(blob, filenameFromImageUrl(url, i));
+                          } catch {
+                            // silently ignore per-item errors
+                          }
+                        }}
+                        style={{
+                          flexShrink: 0,
+                          background: "rgba(99,102,241,0.12)",
+                          border: "1px solid rgba(99,102,241,0.35)",
+                          borderRadius: "999px",
+                          color: theme.primaryText,
+                          padding: "0.2rem 0.6rem",
+                          cursor: isImgDownloading ? "not-allowed" : "pointer",
+                          fontSize: "0.7rem",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : activePage === "download" ? (
           <div style={{ marginBottom: "0.5rem" }}>
             <div
               style={{

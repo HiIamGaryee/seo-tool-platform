@@ -62,3 +62,19 @@ async def fetch_html(url: str = Query(...)) -> Response:
         resp.encoding = resp.apparent_encoding or "utf-8"
     return Response(content=resp.text, media_type="text/html; charset=utf-8")
 
+
+@app.get("/fetch-image")
+async def fetch_image(url: str = Query(...)) -> Response:
+    """
+    Image fetch proxy — avoids browser CORS when downloading images.
+    Returns the raw image bytes with the original content-type.
+    """
+    resp = requests.get(
+        url,
+        timeout=20,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; SEO-Sitemap-Analyzer/1.0)"},
+        stream=False,
+    )
+    content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+    return Response(content=resp.content, media_type=content_type)
+
