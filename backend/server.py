@@ -131,9 +131,17 @@ async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
                     for err in errors[:5]:  # Log first 5 errors
                         logger.warning(f"[{request_id}] Error for {err.get('url')}: {err.get('error')}")
             
-            response = {"rows": rows, "request_id": request_id, "processing_time": analyze_time}
+            response_data = {"rows": rows, "request_id": request_id, "processing_time": analyze_time}
             logger.info(f"[{request_id}] Returning {len(rows)} rows to client")
-            return response
+            return JSONResponse(
+                content=response_data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
             
         except Exception as e:
             logger.error(f"[{request_id}] Error during sitemap analysis: {str(e)}")
