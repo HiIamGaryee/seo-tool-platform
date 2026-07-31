@@ -3,14 +3,29 @@ from __future__ import annotations
 import logging
 import time
 import traceback
+import zipfile
 from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response, JSONResponse
-from typing import Any, List
+from pydantic import BaseModel
+from typing import Any, List, Optional
 from pathlib import Path
 import sys
 import requests
+
+from batch_zip import normalize_items, build_zip
+
+
+class ZipItem(BaseModel):
+    url: str
+    name: Optional[str] = None
+
+
+class ZipRequest(BaseModel):
+    items: Optional[List[ZipItem]] = None
+    urls: Optional[List[str]] = None
+    zipName: Optional[str] = None
 
 # Configure logging
 logging.basicConfig(
@@ -271,6 +286,95 @@ async def fetch_image(url: str = Query(...)) -> Response:
             status_code=500,
             headers={"X-Request-ID": request_id}
         )
+
+# ── Batch endpoints — ONE call fetches many resources and returns one zip ──
+# These replace the frontend's per-item loops over /fetch-html and /fetch-image.
+
+@app.post("/fetch-images-zip")
+async def fetch_images_zip(req: ZipRequest) -> Response:
+    request_id = f"images-zip-{datetime.now().isoformat()}"
+    items = normalize_items(
+        [{"url": i.url, "name": i.name} for i in req.items] if req.items else None,
+        req.urls,
+        ".jpg",
+    )
+    logger.info(f"[{request_id}] images-zip request with {len(items)} item(s)")
+
+    if not items:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "No image URLs provided", "request_id": request_id},
+        )
+
+    try:
+        # Images are already compressed, so store (no re-compression).
+        zip_bytes, packed, failed = build_zip(
+            items,
+            timeout=30,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; SEO-Sitemap-Analyzer/1.0)"},
+            compression=zipfile.ZIP_STORED,
+        )
+        logger.info(f"[{request_id}] images-zip: {packed} packed, {failed} failed")
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="images.zip"',
+                "X-Request-ID": request_id,
+            },
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] images-zip failed: {e}")
+        logger.error(f"[{request_id}] Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to build images zip", "detail": str(e), "request_id": request_id},
+        )
+
+
+@app.post("/fetch-html-zip")
+async def fetch_html_zip(req: ZipRequest) -> Response:
+    request_id = f"html-zip-{datetime.now().isoformat()}"
+    items = normalize_items(
+        [{"url": i.url, "name": i.name} for i in req.items] if req.items else None,
+        req.urls,
+        ".html",
+    )
+    logger.info(f"[{request_id}] html-zip request with {len(items)} item(s)")
+
+    if not items:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "No URLs provided", "request_id": request_id},
+        )
+
+    filename = req.zipName or "pages.zip"
+
+    try:
+        # HTML compresses well — deflate it.
+        zip_bytes, packed, failed = build_zip(
+            items,
+            timeout=15,
+            headers={"User-Agent": "SEO-Sitemap-Analyzer/1.0"},
+            compression=zipfile.ZIP_DEFLATED,
+        )
+        logger.info(f"[{request_id}] html-zip: {packed} packed, {failed} failed")
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Request-ID": request_id,
+            },
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] html-zip failed: {e}")
+        logger.error(f"[{request_id}] Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to build pages zip", "detail": str(e), "request_id": request_id},
+        )
+
 
 # Add startup and shutdown events
 @app.on_event("startup")
