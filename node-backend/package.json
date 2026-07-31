@@ -1,0 +1,19 @@
+{
+  "name": "seo-tool-node-backend",
+  "version": "1.0.0",
+  "description": "Node.js port of the SEO sitemap analyzer backend (drop-in replacement for the FastAPI backend).",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "multer": "^2.2.0"
+  }
+}
