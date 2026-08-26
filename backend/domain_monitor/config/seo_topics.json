@@ -1,0 +1,57 @@
+{
+  "_comment": "Rule-based topical classification. Add or edit categories freely; nothing in the code hardcodes this list. Keywords are matched case-insensitively on word boundaries against historical titles, meta descriptions, URLs and anchor text.",
+  "topics": {
+    "Travel": [
+      "hotel", "hotels", "travel", "flight", "flights", "tour", "tours",
+      "holiday", "holidays", "booking", "resort", "destination", "vacation",
+      "hostel", "airfare", "itinerary", "cruise", "backpacking"
+    ],
+    "Finance": [
+      "loan", "loans", "credit", "finance", "financial", "bank", "banking",
+      "mortgage", "investment", "investing", "savings", "tax", "accounting",
+      "trading", "broker", "pension"
+    ],
+    "Insurance": [
+      "insurance", "insurer", "policy", "policies", "coverage", "claim",
+      "claims", "premium", "underwriting", "deductible", "liability"
+    ],
+    "Automotive": [
+      "car", "cars", "vehicle", "vehicles", "motor", "automotive", "auto",
+      "road tax", "tyre", "tyres", "tire", "garage", "dealership", "suv",
+      "motorcycle", "spare parts"
+    ],
+    "Technology": [
+      "software", "cloud", "hosting", "developer", "app", "apps",
+      "technology", "saas", "api", "server", "devops", "database",
+      "programming", "hardware", "cybersecurity"
+    ],
+    "Gaming": [
+      "game", "games", "gaming", "esports", "gamer", "playstation", "xbox",
+      "nintendo", "console", "walkthrough", "mmorpg"
+    ],
+    "Health": [
+      "health", "fitness", "nutrition", "wellness", "doctor", "clinic",
+      "medical", "diet", "supplement", "therapy", "dental"
+    ],
+    "Real Estate": [
+      "property", "properties", "real estate", "realtor", "apartment",
+      "condo", "rental", "landlord", "mortgage broker", "housing"
+    ],
+    "Education": [
+      "course", "courses", "learn", "learning", "tutorial", "university",
+      "college", "school", "exam", "scholarship", "study"
+    ],
+    "Food": [
+      "recipe", "recipes", "restaurant", "food", "cooking", "kitchen",
+      "cafe", "bakery", "menu", "cuisine", "chef"
+    ],
+    "Fashion": [
+      "fashion", "clothing", "apparel", "shoes", "handbag", "boutique",
+      "outfit", "streetwear", "jewellery", "jewelry"
+    ],
+    "Legal": [
+      "lawyer", "attorney", "legal", "law firm", "litigation", "solicitor",
+      "paralegal", "compliance"
+    ]
+  }
+}

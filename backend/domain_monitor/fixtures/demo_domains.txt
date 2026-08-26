@@ -1,0 +1,15 @@
+# Development fixtures ONLY.
+#
+# These are well-known, permanently registered domains used to exercise the
+# pipeline locally. They are NOT candidate acquisition targets and are never
+# loaded unless DOMAIN_USE_DEMO_DATA=true is set explicitly.
+example.com
+example.net
+example.org
+iana.org
+nic.uk
+google.com
+wikipedia.org
+github.com
+python.org
+this-domain-really-does-not-exist-8347234.com

@@ -1,0 +1,233 @@
+# ============================================
+# Frontend / Node
+# ============================================
+
+node_modules/
+frontend/node_modules/
+
+dist/
+frontend/dist/
+
+build/
+frontend/build/
+
+.vite/
+*.tsbuildinfo
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# ============================================
+# Python Virtual Environments
+# ============================================
+
+venv/
+.venv/
+
+backend/venv/
+backend/.venv/
+
+env/
+ENV/
+
+
+# ============================================
+# Python Cache / Compiled Files
+# ============================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+.coverage
+.coverage.*
+htmlcov/
+
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+
+# ============================================
+# Python Build
+# ============================================
+
+backend/build/
+backend/dist/
+
+*.egg
+MANIFEST
+
+
+# ============================================
+# Environment Variables / Secrets
+# ============================================
+
+.env
+.env.*
+!.env.example
+
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+secrets.toml
+**/secrets.toml
+
+*.pem
+*.key
+
+credentials.json
+service-account.json
+
+
+# ============================================
+# Crawl4AI / Browser / Models
+# ============================================
+
+.crawl4ai/
+backend/.crawl4ai/
+
+playwright/.cache/
+backend/playwright/.cache/
+
+browser_data/
+backend/browser_data/
+
+models/
+backend/models/
+
+
+# ============================================
+# Database
+# ============================================
+
+*.db
+*.sqlite
+*.sqlite3
+
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# Uncomment if you WANT to commit a specific DB
+# !backend/example.db
+
+
+# ============================================
+# Temporary / Runtime Files
+# ============================================
+
+tmp/
+temp/
+
+backend/tmp/
+backend/temp/
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+*.pid
+*.pid.lock
+
+
+# ============================================
+# Logs
+# ============================================
+
+*.log
+logs/
+backend/logs/
+
+
+# ============================================
+# Exported / Generated Data
+# ============================================
+
+exports/
+backend/exports/
+
+downloads/
+backend/downloads/
+
+uploads/
+backend/uploads/
+
+*.csv.tmp
+*.xlsx.tmp
+
+
+# ============================================
+# macOS
+# ============================================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+._*
+
+.Spotlight-V100
+.Trashes
+
+
+# ============================================
+# Windows
+# ============================================
+
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+
+# ============================================
+# VS Code
+# ============================================
+
+.vscode/*
+
+# Keep useful shared VS Code config
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+
+# ============================================
+# JetBrains
+# ============================================
+
+.idea/
+*.iml
+
+
+# ============================================
+# Misc
+# ============================================
+
+.cache/
+.parcel-cache/
+
+coverage/
+
+*.local

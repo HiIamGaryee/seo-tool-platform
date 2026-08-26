@@ -1,0 +1,57 @@
+{
+  "_comment": "Deterministic spam-history detection. Matched the same way as seo_topics.json. Presence of a category in a domain's history contributes the points below to the rule-based spam risk score.",
+  "categories": {
+    "Gambling": {
+      "points": 22,
+      "keywords": [
+        "casino", "bet", "betting", "slots", "poker", "sportsbook", "roulette",
+        "blackjack", "jackpot", "wagering", "bookmaker", "baccarat"
+      ]
+    },
+    "Pharma": {
+      "points": 25,
+      "keywords": [
+        "viagra", "cialis", "pharmacy", "pills", "tramadol", "xanax",
+        "no prescription", "generic drugs", "levitra"
+      ]
+    },
+    "Adult": {
+      "points": 25,
+      "keywords": [
+        "adult", "porn", "xxx", "escort", "webcam girls", "nsfw", "hentai"
+      ]
+    },
+    "Payday Loans": {
+      "points": 18,
+      "keywords": [
+        "payday loan", "payday loans", "quick loan", "instant cash loan",
+        "no credit check loan", "cash advance"
+      ]
+    },
+    "Crypto Spam": {
+      "points": 18,
+      "keywords": [
+        "crypto pump", "token presale", "airdrop", "shitcoin", "moonshot",
+        "pump and dump", "guaranteed returns crypto"
+      ]
+    },
+    "Replica Goods": {
+      "points": 15,
+      "keywords": [
+        "replica", "knockoff", "fake watches", "cheap replica", "replica bags"
+      ]
+    },
+    "Essay Mills": {
+      "points": 12,
+      "keywords": [
+        "write my essay", "essay writing service", "buy essay",
+        "assignment writing service"
+      ]
+    }
+  },
+  "generic_anchors": [
+    "click here", "here", "read more", "more info", "this site", "website",
+    "link", "visit", "check it out", "learn more", "see more", "url",
+    "homepage", "this page", "click", "go here"
+  ]
+}
