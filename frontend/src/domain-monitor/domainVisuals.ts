@@ -27,7 +27,7 @@ const CATEGORY_BADGE: Record<DomainCategory, string> = {
   "Expiring <=30 Days": "border-caution/25 bg-caution/10 text-caution",
   "Expiring 31-60 Days": "border-transparent bg-secondary text-secondary-foreground",
   Safe: "border-success/25 bg-success/10 text-success",
-  Unknown: "border-border text-muted-foreground",
+  Unknown: "border-transparent bg-[#d0c4c9] text-foreground",
 }
 
 const PRIORITY_DOT: Record<DomainPriority, string> = {

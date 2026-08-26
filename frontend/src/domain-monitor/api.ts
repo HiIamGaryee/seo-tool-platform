@@ -339,6 +339,44 @@ export async function testGemini(): Promise<GeminiTestResult> {
   );
 }
 
+export type GeminiKeyValidationResult = {
+  status: "ok" | "error" | "not_configured";
+  message?: string | null;
+  http_status?: number;
+  key_source?: "default" | "custom";
+  configured?: boolean;
+}
+
+export async function validateGeminiKey(
+  useDefaultKey: boolean,
+  geminiApiKey = "",
+): Promise<GeminiKeyValidationResult> {
+  const response = await axios.post<GeminiKeyValidationResult>(
+    `${API_BASE_URL}/gemini/validate-key`,
+    {
+      use_default_key: useDefaultKey,
+      gemini_api_key: geminiApiKey,
+    },
+    { timeout: 30000 },
+  )
+  return response.data
+}
+
+export async function setGeminiKey(
+  useDefaultKey: boolean,
+  geminiApiKey = "",
+): Promise<GeminiKeyValidationResult> {
+  const response = await axios.post<GeminiKeyValidationResult>(
+    `${BASE}/gemini/key`,
+    {
+      use_default_key: useDefaultKey,
+      gemini_api_key: geminiApiKey,
+    },
+    { timeout: 30000 },
+  )
+  return response.data
+}
+
 export type ScanOptions = {
   force?: boolean;
   useSources?: boolean;

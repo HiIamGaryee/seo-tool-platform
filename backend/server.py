@@ -5,7 +5,8 @@ import time
 import traceback
 from dataclasses import asdict
 from datetime import datetime
-from fastapi import Body, FastAPI, File, UploadFile, Query, Request
+import os
+from fastapi import Body, FastAPI, File, UploadFile, Query, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response, JSONResponse
 from typing import Any, List, Optional
@@ -40,6 +41,9 @@ for _env_file in (ROOT_DIR / ".env", Path(__file__).resolve().parent / ".env"):
         load_dotenv(_env_file, override=False)
         logger.info("Loaded environment from %s", _env_file)
 
+DEFAULT_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL") or "gemini/gemini-3-flash-preview"
+
 from seo_scraper import analyze_sitemap_bytes, rows_to_excel_bytes  # type: ignore
 
 # Domain Monitor lives in its own package next to this file
@@ -59,6 +63,70 @@ import similar_domains as dm_similar  # type: ignore
 from models import CATEGORIES, PRIORITIES, normalize_domain  # type: ignore
 
 app = FastAPI()
+
+
+def validate_gemini_api_key(
+    api_key: str | None,
+    model_name: str | None = None,
+) -> dict[str, Any]:
+    key = (api_key or "").strip()
+    if not key:
+        return {
+            "status": "not_configured",
+            "provider": "Gemini",
+            "model": model_name or os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL,
+            "latency_ms": None,
+            "error": "gemini_not_configured",
+            "message": "GEMINI_API_KEY is not set",
+        }
+
+    resolved_model = model_name or os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    model = resolved_model.split("/", 1)[-1] or "gemini-3-flash-preview"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    started = time.monotonic()
+    try:
+        response = requests.post(
+            url,
+            headers={"x-goog-api-key": key},
+            json={"contents": [{"parts": [{"text": "ping"}]}]},
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        return {
+            "status": "error",
+            "provider": "Gemini",
+            "model": resolved_model,
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            "error": "gemini_transport_error",
+            "message": str(exc)[:300],
+        }
+
+    latency_ms = int((time.monotonic() - started) * 1000)
+    if response.status_code == 200:
+        return {
+            "status": "ok",
+            "provider": "Gemini",
+            "model": resolved_model,
+            "latency_ms": latency_ms,
+            "error": None,
+            "message": None,
+        }
+
+    kind = {
+        400: "gemini_bad_request",
+        401: "gemini_unauthorized",
+        403: "gemini_forbidden",
+        429: "gemini_rate_limit",
+    }.get(response.status_code, "gemini_http_error")
+    return {
+        "status": "error",
+        "provider": "Gemini",
+        "model": resolved_model,
+        "latency_ms": latency_ms,
+        "http_status": response.status_code,
+        "error": kind,
+        "message": f"Gemini returned HTTP {response.status_code}",
+    }
 
 # CORS middleware with detailed configuration
 app.add_middleware(
@@ -117,9 +185,14 @@ async def health_check():
     }
 
 @app.post("/analyze-sitemap")
-async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
+async def analyze_sitemap(
+    file: UploadFile = File(...),
+    use_default_key: bool = Form(True),
+    gemini_api_key: str = Form(""),
+) -> dict[str, Any]:
     request_id = f"analyze-{datetime.now().isoformat()}-{id(file)}"
     logger.info(f"[{request_id}] Starting analyze-sitemap request")
+    previous_gemini_key = os.getenv("GEMINI_API_KEY")
     
     try:
         # Log file details
@@ -146,6 +219,16 @@ async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
         start_analyze = time.time()
         
         try:
+            selected_gemini_key = (
+                (os.getenv("GEMINI_API_KEY") or "").strip()
+                if use_default_key
+                else gemini_api_key.strip()
+            )
+            if selected_gemini_key:
+                os.environ["GEMINI_API_KEY"] = selected_gemini_key
+            elif not use_default_key:
+                os.environ.pop("GEMINI_API_KEY", None)
+
             # Log the first 500 characters of the file for debugging
             file_preview = data[:500].decode('utf-8', errors='ignore')
             logger.debug(f"[{request_id}] File preview: {file_preview}")
@@ -163,7 +246,13 @@ async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
                     for err in errors[:5]:  # Log first 5 errors
                         logger.warning(f"[{request_id}] Error for {err.get('url')}: {err.get('error')}")
             
-            response_data = {"rows": rows, "request_id": request_id, "processing_time": analyze_time}
+            response_data = {
+                "rows": rows,
+                "request_id": request_id,
+                "processing_time": analyze_time,
+                "gemini_key_source": "default" if use_default_key else "custom",
+                "gemini_key_configured": bool(selected_gemini_key),
+            }
             logger.info(f"[{request_id}] Returning {len(rows)} rows to client")
             return JSONResponse(
                 content=response_data,
@@ -186,6 +275,11 @@ async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
                     "request_id": request_id
                 }
             )
+        finally:
+            if previous_gemini_key is None:
+                os.environ.pop("GEMINI_API_KEY", None)
+            else:
+                os.environ["GEMINI_API_KEY"] = previous_gemini_key
             
     except Exception as e:
         logger.error(f"[{request_id}] Unexpected error: {str(e)}")
@@ -198,6 +292,39 @@ async def analyze_sitemap(file: UploadFile = File(...)) -> dict[str, Any]:
                 "request_id": request_id
             }
         )
+
+
+@app.post("/gemini/validate-key")
+async def gemini_validate_key(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    use_default_key = bool(payload.get("use_default_key", True))
+    custom_key = str(payload.get("gemini_api_key", "") or "").strip()
+    selected_key = (os.getenv("GEMINI_API_KEY") or "").strip() if use_default_key else custom_key
+    result = validate_gemini_api_key(selected_key)
+    result["key_source"] = "default" if use_default_key else "custom"
+    result["configured"] = bool(selected_key)
+    return result
+
+
+@app.post("/api/domain-monitor/gemini/key")
+async def domain_monitor_set_gemini_key(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    use_default_key = bool(payload.get("use_default_key", True))
+    custom_key = str(payload.get("gemini_api_key", "") or "").strip()
+
+    if use_default_key:
+        if DEFAULT_GEMINI_API_KEY:
+            os.environ["GEMINI_API_KEY"] = DEFAULT_GEMINI_API_KEY
+        else:
+            os.environ.pop("GEMINI_API_KEY", None)
+    else:
+        if custom_key:
+            os.environ["GEMINI_API_KEY"] = custom_key
+        else:
+            os.environ.pop("GEMINI_API_KEY", None)
+
+    result = validate_gemini_api_key(os.getenv("GEMINI_API_KEY"))
+    result["key_source"] = "default" if use_default_key else "custom"
+    result["configured"] = bool(os.getenv("GEMINI_API_KEY"))
+    return result
 
 @app.post("/export-excel")
 async def export_excel(rows: List[dict[str, Any]]) -> StreamingResponse:

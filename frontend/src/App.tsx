@@ -262,7 +262,6 @@ function App() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-
       const response = await axios.post<{ rows: SeoRow[] }>(
         `${API_BASE_URL}/analyze-sitemap`,
         formData,
@@ -557,8 +556,8 @@ function App() {
           </Button>
         </CardHeader>
 
-        {showInfo && (
-          <CardContent className="pb-0">
+        <CardContent className="space-y-4">
+          {showInfo && (
             <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-left text-xs text-muted-foreground">
             <div className="mb-1 font-semibold text-foreground">
               How to use
@@ -584,12 +583,9 @@ function App() {
               </li>
             </ol>
             </div>
-          </CardContent>
-        )}
+          )}
 
-        <CardContent className="space-y-4">
-
-        {isRunning && (
+          {isRunning && (
           <div
             style={{
               marginBottom: "1rem",
@@ -669,7 +665,7 @@ function App() {
               </div>
             </div>
           </div>
-        )}
+          )}
 
         {activePage === "imgextract" ? (
           <div style={{ marginBottom: "0.5rem" }}>

@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import CompareDialog from "./CompareDialog"
@@ -42,9 +43,12 @@ import {
   fetchScanState,
   fetchStats,
   saveTargetNiches,
+  setGeminiKey,
   setWatchlist,
   startEnrichment,
   startScan,
+  validateGeminiKey,
+  type GeminiKeyValidationResult,
   type ScanOptions,
 } from "./api"
 import {
@@ -97,6 +101,11 @@ function DomainMonitorPage() {
   const [isNichesOpen, setIsNichesOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [reloadToken, setReloadToken] = useState(0)
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false)
+  const [geminiApiKey, setGeminiApiKey] = useState("")
+  const [useDefaultGeminiKey, setUseDefaultGeminiKey] = useState(true)
+  const [geminiKeyHelperText, setGeminiKeyHelperText] = useState("Using default .env key.")
+  const [isGeminiKeyChecking, setIsGeminiKeyChecking] = useState(false)
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
@@ -388,6 +397,57 @@ function DomainMonitorPage() {
   const isScanning = scan?.status === "running"
   const isEnriching = enrichment?.status === "running"
 
+  const applyGeminiValidationMessage = (
+    result: GeminiKeyValidationResult,
+    mode: "default" | "custom",
+  ) => {
+    if (result.status === "ok") {
+      setGeminiKeyHelperText(mode === "default" ? "Default API key is valid." : "API key is valid.")
+      return true
+    }
+    setGeminiKeyHelperText(
+      mode === "default" ? "Default API key not valid." : "API key not valid.",
+    )
+    return false
+  }
+
+  const handleValidateGeminiKey = async (mode: "default" | "custom", keyValue: string) => {
+    setIsGeminiKeyChecking(true)
+    setGeminiKeyHelperText("Checking API key...")
+    try {
+      const result = await validateGeminiKey(mode === "default", mode === "custom" ? keyValue : "")
+      return applyGeminiValidationMessage(result, mode)
+    } catch {
+      setGeminiKeyHelperText("Could not validate API key right now.")
+      return false
+    } finally {
+      setIsGeminiKeyChecking(false)
+    }
+  }
+
+  const handleApplyGeminiKey = async (mode: "default" | "custom") => {
+    const keyValue = geminiApiKey.trim()
+    if (mode === "custom" && !keyValue) {
+      setGeminiKeyHelperText("API key not valid.")
+      return
+    }
+
+    setIsGeminiKeyChecking(true)
+    setGeminiKeyHelperText("Checking API key...")
+    try {
+      const result = await setGeminiKey(mode === "default", mode === "custom" ? keyValue : "")
+      const isValid = applyGeminiValidationMessage(result, mode)
+      if (!isValid) return
+      setUseDefaultGeminiKey(mode === "default")
+      toast.success(mode === "default" ? "Default Gemini key active" : "Custom Gemini key active")
+    } catch (caught) {
+      setGeminiKeyHelperText("Could not apply API key right now.")
+      toast.error("Could not apply Gemini key", { description: errorMessage(caught) })
+    } finally {
+      setIsGeminiKeyChecking(false)
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -448,12 +508,74 @@ function DomainMonitorPage() {
               ? `Enriching ${enrichment?.checked ?? 0}/${enrichment?.total ?? 0}`
               : "Refresh SEO Data"}
           </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowApiKeyForm((value) => !value)}
+            className="border-0 bg-[linear-gradient(135deg,#ec4899_0%,#f59e0b_100%)] text-white shadow-sm hover:opacity-90"
+          >
+            {showApiKeyForm ? "Hide API Key" : "Add API Key"}
+          </Button>
           <Button size="sm" onClick={() => setIsScanOpen(true)}>
             <ScanSearch className="size-4" />
             {isScanning ? "Scanning..." : "Run Scan"}
           </Button>
         </div>
       </div>
+
+      {showApiKeyForm && (
+        <div className="rounded-xl border border-border bg-muted/30 p-4">
+          <div className="space-y-1">
+            <div className="text-sm font-semibold text-foreground">Gemini API Key</div>
+            <div className="text-xs text-muted-foreground">
+              Switch SEO Domain Radar between the default `.env` key and a custom Gemini key.
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            <Input
+              type="password"
+              value={geminiApiKey}
+              onChange={(event) => {
+                setGeminiApiKey(event.target.value)
+                setUseDefaultGeminiKey(false)
+                setGeminiKeyHelperText("Paste your Gemini API key.")
+              }}
+              onBlur={() => {
+                if (!useDefaultGeminiKey && geminiApiKey.trim()) {
+                  void handleValidateGeminiKey("custom", geminiApiKey.trim())
+                } else if (!useDefaultGeminiKey) {
+                  setGeminiKeyHelperText("API key not valid.")
+                }
+              }}
+              placeholder="Paste Gemini API key"
+            />
+            <div className="text-xs text-muted-foreground">
+              {isGeminiKeyChecking ? "Checking API key..." : geminiKeyHelperText}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                {
+                  label: "Send Key",
+                  onClick: () => void handleApplyGeminiKey("custom"),
+                  className:
+                    "bg-[linear-gradient(135deg,#ec4899_0%,#f59e0b_100%)] text-white hover:opacity-90",
+                },
+                {
+                  label: "Use Default Key",
+                  onClick: () => void handleApplyGeminiKey("default"),
+                  className: "",
+                },
+              ].map(({ label, onClick, className }) => (
+                <Button key={label} type="button" size="sm" variant="outline" onClick={onClick} className={className}>
+                  {label}
+                </Button>
+              ))}
+              <div className="text-xs text-muted-foreground">
+                Active: {useDefaultGeminiKey ? "Default .env key" : "Custom key"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SimilarDomainPanel
         onView={openDetail}
