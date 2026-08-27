@@ -4,6 +4,21 @@
 // Same routes, same JSON shapes, same default port (8000) — the React frontend
 // needs no changes.
 
+// Load .env BEFORE requiring any Domain Monitor module: several of them read
+// configuration (TTLs, limits, whois fallback, Gemini key) at require() time.
+// Mirrors server.py: the repo-root .env loads first, then node-backend/.env
+// layers on top, and neither ever overrides a real environment variable
+// (override: false), so container/CI overrides keep working.
+const path = require("path");
+const dotenv = require("dotenv");
+for (const envFile of [
+  path.resolve(__dirname, "..", ".env"),
+  path.resolve(__dirname, ".env"),
+]) {
+  const result = dotenv.config({ path: envFile, override: false });
+  if (!result.error) console.log("Loaded environment from " + envFile);
+}
+
 const https = require("https");
 const express = require("express");
 const cors = require("cors");
