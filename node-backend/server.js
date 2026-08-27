@@ -15,6 +15,10 @@ const {
   rowsToExcelBytes,
 } = require("./seoScraper");
 
+const dmStorage = require("./domainMonitor/storage");
+const dmCrawl = require("./domainMonitor/crawl4aiSource");
+const { registerDomainMonitorRoutes } = require("./domainMonitor/routes");
+
 const PORT = process.env.PORT || 8000;
 
 const app = express();
@@ -49,11 +53,16 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
+  const crawl = dmCrawl.healthStatus();
   res.json({
     status: "healthy",
     timestamp: new Date().toISOString(),
     node_version: process.version,
     api_version: "1.0.0",
+    rdap: "available",
+    crawl4ai: crawl.crawl4ai,
+    crawl4ai_browser: crawl.crawl4ai_browser,
+    gemini: crawl.gemini,
   });
 });
 
@@ -176,9 +185,18 @@ app.get("/fetch-image", async (req, res) => {
   }
 });
 
+// Domain Monitor endpoints (ported from backend/server.py).
+registerDomainMonitorRoutes(app);
+
 app.listen(PORT, () => {
   console.log("=".repeat(50));
   console.log("SEO API Server (Node.js) listening on port " + PORT);
   console.log("Node version: " + process.version);
+  try {
+    dmStorage.migrate();
+    console.log("Domain Monitor DB ready: " + dmStorage.DB_PATH);
+  } catch (e) {
+    console.error("Domain Monitor migration failed: " + (e.message || e));
+  }
   console.log("=".repeat(50));
 });

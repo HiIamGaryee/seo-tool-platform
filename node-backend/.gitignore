@@ -1,2 +1,8 @@
 node_modules/
 *.log
+
+# Domain Monitor runtime data (SQLite DB + WAL, mirrored imports)
+domainMonitor/data/*.db
+domainMonitor/data/*.db-shm
+domainMonitor/data/*.db-wal
+domainMonitor/sources/imported.txt

@@ -1,0 +1,125 @@
+{
+  "_comment": "Every weight, band and threshold used by the rule-based SEO Opportunity Score and the spam risk score. Nothing here is inferred or learned. Components with no data are excluded and the remaining weight is renormalised, so missing data never silently scores as zero.",
+
+  "weights": {
+    "referring_domains": 25,
+    "backlink_quality": 20,
+    "historical_stability": 15,
+    "topical_relevance": 15,
+    "domain_age": 10,
+    "anchor_profile": 10,
+    "domain_quality": 5
+  },
+
+  "referring_domain_bands": [
+    [0, 0.0],
+    [5, 0.15],
+    [15, 0.35],
+    [50, 0.55],
+    [120, 0.75],
+    [350, 0.9],
+    [1000, 1.0]
+  ],
+
+  "backlink_quality": {
+    "follow_pct_ideal_min": 40,
+    "follow_pct_ideal_max": 90,
+    "follow_pct_weight": 0.35,
+    "diversity_weight": 0.35,
+    "diversity_ideal_links_per_domain": 25,
+    "tld_spread_weight": 0.3,
+    "tld_spread_target": 6
+  },
+
+  "historical_stability": {
+    "snapshot_bands": [
+      [0, 0.0],
+      [5, 0.3],
+      [25, 0.6],
+      [100, 0.85],
+      [400, 1.0]
+    ],
+    "switch_penalty_per_change": 0.25,
+    "stability_labels": {
+      "stable_max_switches": 1,
+      "some_changes_max_switches": 2
+    }
+  },
+
+  "topical_relevance": {
+    "points": {
+      "title_match": 5,
+      "meta_match": 3,
+      "anchor_match": 3,
+      "url_match": 2
+    },
+    "score_cap": 40,
+    "bands": {
+      "high_min": 20,
+      "medium_min": 10,
+      "low_min": 1
+    }
+  },
+
+  "domain_age": {
+    "bands": [
+      [0, 0.0],
+      [1, 0.2],
+      [3, 0.45],
+      [5, 0.65],
+      [10, 0.85],
+      [15, 1.0]
+    ]
+  },
+
+  "anchor_profile": {
+    "suspicious_pct_zero_at": 45,
+    "generic_pct_penalty_start": 35,
+    "exact_match_concentration_penalty_start": 30
+  },
+
+  "domain_quality": {
+    "length_ideal_max": 12,
+    "length_poor_min": 22,
+    "hyphen_penalty": 0.3,
+    "digit_penalty": 0.25,
+    "preferred_tlds": [".com", ".net", ".org", ".io", ".co", ".ai", ".dev"],
+    "preferred_tld_bonus": 0.2,
+    "subdomain_penalty": 0.15
+  },
+
+  "spam_risk": {
+    "suspicious_anchor_pct_threshold": 25,
+    "suspicious_anchor_points": 20,
+    "exact_match_concentration_threshold": 35,
+    "exact_match_points": 12,
+    "topic_switch_threshold": 3,
+    "topic_switch_points_each": 6,
+    "topic_switch_points_cap": 24,
+    "backlink_spike_ratio": 3.0,
+    "backlink_spike_points": 14,
+    "lost_backlink_ratio": 0.6,
+    "lost_backlink_points": 8,
+    "levels": {
+      "low_max": 20,
+      "moderate_max": 45,
+      "high_max": 70
+    }
+  },
+
+  "minimum_available_weight_pct": 35,
+
+  "completeness_labels": {
+    "full_min": 95,
+    "partial_min": 60
+  },
+
+  "spam_penalty_factor": 0.5,
+
+  "seo_score_labels": {
+    "excellent_min": 90,
+    "strong_min": 80,
+    "good_min": 70,
+    "review_min": 60
+  }
+}

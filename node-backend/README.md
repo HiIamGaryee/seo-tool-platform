@@ -49,3 +49,45 @@ of uvicorn.
   order is preserved by sitemap order, so results are unchanged — just faster.
 - The `exceljs` audit warnings come from its transitive deps and are only
   reachable through `/export-excel`, which the current frontend does not call.
+
+## Domain Monitor (ported from `backend/domain_monitor/`)
+
+The full **Domain Monitor / SEO Domain Radar** subsystem is ported to Node under
+`domainMonitor/` and mounted by `server.js` at `/api/domain-monitor/*` (~30
+endpoints, same routes and JSON shapes as the FastAPI backend, so the React
+frontend needs no changes). Storage is SQLite via `better-sqlite3`; the schema,
+scoring config and topic/spam keyword lists are byte-for-byte the same JSON.
+
+Pipelines: **scan** (discovery sources → normalise → dedupe → RDAP verify →
+classify → store) and **enrich** (Wayback archive history + backlink provider +
+topic classification + spam rules + rule-based SEO Opportunity Score), plus
+**discover-keyword** (fuzzy similar/expiring-domain discovery).
+
+### Python → Node mapping (Domain Monitor)
+
+| Python                         | Node                                             |
+|--------------------------------|--------------------------------------------------|
+| `sqlite3`                      | `better-sqlite3`                                 |
+| `requests` clients             | `axios` (via `net.js`)                           |
+| `BeautifulSoup`                | `cheerio`                                        |
+| `ThreadPoolExecutor`           | bounded async Promise pool (`pool.js`)           |
+| `pandas`/`openpyxl` export     | `exceljs`                                        |
+| `rapidfuzz`/`difflib`          | in-repo Levenshtein + SequenceMatcher port       |
+| **`crawl4ai`** (headless LLM crawler) | `axios` + `cheerio` raw-HTTP crawl, with the Gemini REST API as the extraction fallback |
+
+**crawl4ai note:** Node has no `crawl4ai` package, so the headless-browser path
+is replaced by raw-HTTP crawling (axios + cheerio) and a direct Gemini
+`generateContent` call for the LLM-extraction fallback. `healthStatus()` reports
+`crawl4ai_browser: "not installed"` accordingly; CSS-selector / pagination /
+domain-extraction crawling all work.
+
+### Domain Monitor config / env
+
+Same env var names as the Python backend, e.g. `DOMAIN_MONITOR_DB`,
+`DOMAIN_SOURCES`, `RDAP_CACHE_HOURS`, `DOMAIN_MONITOR_WHOIS_FALLBACK`,
+`BACKLINK_PROVIDER` + `BACKLINK_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
+`DOMAIN_MONITOR_BACKLINK_TTL_HOURS`, `DOMAIN_MONITOR_HISTORY_TTL_DAYS`. With no
+extra config a fresh install discovers zero candidates (import a TXT/CSV list or
+set `DOMAIN_SOURCES`) and the backlink provider is `none` (metrics render as
+em dashes, never zero). The SQLite DB lives at `domainMonitor/data/` and is
+gitignored.
